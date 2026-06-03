@@ -1,8 +1,15 @@
 const prisma = require("../config/prisma");
 
-exports.getAllReviews = async () => {
+exports.getReviewsByProperty = async (propertyId) => {
+  const property = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!property) {
+    const err = new Error("Property not found");
+    err.status = 404;
+    throw err;
+  }
   return prisma.review.findMany({
-    include: { reviewer: true, property: true },
+    where: { property_id: propertyId },
+    include: { reviewer: true },
   });
 };
 

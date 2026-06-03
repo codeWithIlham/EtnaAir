@@ -67,6 +67,7 @@ const upload = multer({
  *       500:
  *         description: Erreur serveur
  */
-router.post("/", authMiddleware, upload.single("image"), uploadController.uploadImage);
+router.post("/",           authMiddleware, upload.single("image"), uploadController.uploadImage);
+router.delete("/:imageId", authMiddleware,                         uploadController.deleteImage);
 
 module.exports = router;

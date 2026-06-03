@@ -1,6 +1,20 @@
 const express = require("express");
 const router = express.Router();
+const { body } = require("express-validator");
 const authController = require("../controllers/auth.controller");
+const validate = require("../middlewares/validate.middleware");
+
+const registerRules = [
+  body("first_name").trim().notEmpty().withMessage("Le prénom est obligatoire"),
+  body("last_name").trim().notEmpty().withMessage("Le nom est obligatoire"),
+  body("email").isEmail().withMessage("Email invalide").normalizeEmail(),
+  body("password").isLength({ min: 6 }).withMessage("Le mot de passe doit contenir au moins 6 caractères"),
+];
+
+const loginRules = [
+  body("email").isEmail().withMessage("Email invalide").normalizeEmail(),
+  body("password").notEmpty().withMessage("Le mot de passe est obligatoire"),
+];
 
 /**
  * @swagger
@@ -41,7 +55,7 @@ const authController = require("../controllers/auth.controller");
  *       500:
  *         description: Erreur serveur
  */
-router.post("/register", authController.register);
+router.post("/register", registerRules, validate, authController.register);
 
 /**
  * @swagger
@@ -76,6 +90,6 @@ router.post("/register", authController.register);
  *       401:
  *         description: Identifiants invalides
  */
-router.post("/login", authController.login);
+router.post("/login", loginRules, validate, authController.login);
 
 module.exports = router;

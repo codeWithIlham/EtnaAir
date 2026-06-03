@@ -14,13 +14,41 @@ const authMiddleware = require("../middlewares/auth.middleware");
  * @swagger
  * /bookings:
  *   get:
- *     summary: Lister toutes les réservations
+ *     summary: Lister mes réservations
  *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Liste des réservations
+ *         description: Liste des réservations de l'utilisateur connecté
+ *       401:
+ *         description: Non authentifié
  */
-router.get("/", bookingController.getAllBookings);
+router.get("/", authMiddleware, bookingController.getAllBookings);
+
+/**
+ * @swagger
+ * /bookings/{id}:
+ *   get:
+ *     summary: Détail d'une réservation
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Détail de la réservation
+ *       401:
+ *         description: Non authentifié
+ *       404:
+ *         description: Réservation introuvable
+ */
+router.get("/:id", authMiddleware, bookingController.getBookingById);
 
 /**
  * @swagger
@@ -36,31 +64,54 @@ router.get("/", bookingController.getAllBookings);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [guest_id, property_id, start_date, end_date, total_price]
+ *             required: [property_id, start_date, end_date]
  *             properties:
- *               guest_id:
- *                 type: integer
- *                 example: 1
  *               property_id:
  *                 type: integer
  *                 example: 2
  *               start_date:
  *                 type: string
  *                 format: date
- *                 example: "2025-07-01"
+ *                 example: "2025-08-01"
  *               end_date:
  *                 type: string
  *                 format: date
- *                 example: "2025-07-07"
- *               total_price:
- *                 type: number
- *                 example: 595.00
+ *                 example: "2025-08-05"
  *     responses:
  *       201:
  *         description: Réservation créée
- *       500:
- *         description: Erreur serveur
+ *       400:
+ *         description: Dates invalides
+ *       401:
+ *         description: Non authentifié
+ *       404:
+ *         description: Logement introuvable
  */
 router.post("/", authMiddleware, bookingController.createBooking);
+
+/**
+ * @swagger
+ * /bookings/{id}:
+ *   delete:
+ *     summary: Annuler une réservation
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Réservation annulée
+ *       401:
+ *         description: Non authentifié
+ *       404:
+ *         description: Réservation introuvable
+ */
+router.delete("/:id",        authMiddleware, bookingController.deleteBooking);
+router.patch("/:id/status",  authMiddleware, bookingController.updateStatus);
 
 module.exports = router;

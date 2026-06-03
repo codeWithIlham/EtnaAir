@@ -1,0 +1,50 @@
+﻿---
+# Ingress Controller (NGINX)
+# Requiert : kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+# TLS via cert-manager + Let's Encrypt
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: etnair-ingress
+  namespace: etnair
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # TLS auto avec cert-manager (Let's Encrypt)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    # CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+spec:
+  tls:
+    - hosts:
+        - app.etnair.com
+        - api.etnair.com
+      secretName: etnair-tls
+  rules:
+    # Frontend
+    - host: app.etnair.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    # API
+    - host: api.etnair.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 3000

@@ -1,0 +1,143 @@
+﻿---
+# Namespace gitlab
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitlab
+---
+# Secret : token runner GitLab
+# Créer avec : kubectl create secret generic gitlab-runner-secret \
+#   --from-literal=runner-registration-token=<VOTRE_TOKEN> \
+#   --from-literal=runner-token="" -n gitlab
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitlab-runner-secret
+  namespace: gitlab
+type: Opaque
+stringData:
+  runner-registration-token: "REMPLACER_PAR_VOTRE_TOKEN_GITLAB"
+  runner-token: ""
+---
+# ConfigMap : configuration du runner
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-runner-config
+  namespace: gitlab
+data:
+  config.toml: |
+    concurrent = 4
+    check_interval = 3
+    log_level = "info"
+
+    [session_server]
+      session_timeout = 1800
+
+    [[runners]]
+      name = "etnair-k8s-runner"
+      url = "https://rendu-git.etna-alternance.net/"
+      executor = "kubernetes"
+      [runners.kubernetes]
+        namespace = "gitlab"
+        image = "node:20-alpine"
+        privileged = true
+        [[runners.kubernetes.volumes.empty_dir]]
+          name = "docker-certs"
+          mount_path = "/certs/client"
+          medium = "Memory"
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-runner
+  namespace: gitlab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-runner
+  namespace: gitlab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/attach", "services", "secrets"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-runner
+  namespace: gitlab
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-runner
+    namespace: gitlab
+roleRef:
+  kind: Role
+  name: gitlab-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+# Deployment : GitLab Runner
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab-runner
+  namespace: gitlab
+  labels:
+    app: gitlab-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab-runner
+  template:
+    metadata:
+      labels:
+        app: gitlab-runner
+    spec:
+      serviceAccountName: gitlab-runner
+      containers:
+        - name: gitlab-runner
+          image: gitlab/gitlab-runner:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              gitlab-runner register \
+                --non-interactive \
+                --url "https://rendu-git.etna-alternance.net/" \
+                --registration-token "${REGISTRATION_TOKEN}" \
+                --executor kubernetes \
+                --description "ETNAir K8s Runner" \
+                --tag-list "kubernetes,etnair" \
+                --run-untagged=true \
+                --kubernetes-namespace gitlab && \
+              gitlab-runner run --user=gitlab-runner --working-directory=/home/gitlab-runner
+          env:
+            - name: REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-runner-secret
+                  key: runner-registration-token
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gitlab-runner
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+      volumes:
+        - name: config
+          configMap:
+            name: gitlab-runner-config
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock

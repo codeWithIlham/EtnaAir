@@ -1,55 +1,150 @@
-version: '3.8'
+﻿# ============================================================
+# ETNAir — Docker Compose
+# Services : PostgreSQL | API | Frontend | MinIO | pgAdmin | Prometheus | Grafana
+# ============================================================
 
 services:
-  # 1. Le service de Base de données
+
+  # 1. Base de données PostgreSQL
   db:
     image: postgres:15-alpine
-    container_name: p2b_db
+    container_name: etnair_db
     restart: always
     environment:
-      POSTGRES_USER: p2b_user
-      POSTGRES_PASSWORD: p2b_pass
-      POSTGRES_DB: p2b_db
+      POSTGRES_USER: etnair_user
+      POSTGRES_PASSWORD: etnair_pass
+      POSTGRES_DB: etnair_db
     volumes:
-      - ./db:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     networks:
-      - p2b_network
+      - etnair_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etnair_user -d etnair_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
- # 2. Le service API (Node.js)
+  # 2. API Node.js + Prisma
   api:
-    build: ./api
-    container_name: p2b_api
+    build: ./backend
+    container_name: etnair_api
     restart: always
     environment:
-      DB_HOST: db
-      DB_USER: p2b_user
-      DB_PASSWORD: p2b_pass
-      DB_NAME: p2b_db
+      DATABASE_URL: postgresql://etnair_user:etnair_pass@db:5432/etnair_db
+      JWT_SECRET: etnair_jwt_secret_2024
       PORT: 3000
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_PUBLIC_HOST: localhost
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: etnair-images
     ports:
       - "3000:3000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
     networks:
-      - p2b_network
+      - etnair_network
 
-# 3. NOUVEAU : Le service pgAdmin
+  # 3. Frontend React
+  frontend:
+    build: ./frontend
+    container_name: etnair_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - etnair_network
+
+  # 4. MinIO (stockage images)
+  minio:
+    image: minio/minio:latest
+    container_name: etnair_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    networks:
+      - etnair_network
+
+  # 5. pgAdmin (interface PostgreSQL)
   pgadmin:
-    image: dpage/pgadmin4
-    container_name: p2b_pgadmin
+    image: dpage/pgadmin4:latest
+    container_name: etnair_pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@p2b.com
+      PGADMIN_DEFAULT_EMAIL: admin@etnair.com
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
-      - p2b_network
+      - etnair_network
 
-# 4. La définition du réseau commun
+  # 6. Prometheus (métriques)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: etnair_prometheus
+    restart: always
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-rules.yml:/etc/prometheus/rules/rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - etnair_network
+    depends_on:
+      - api
+
+  # 7. Grafana (dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: etnair_grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: etnair2026
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - etnair_network
+    depends_on:
+      - prometheus
+
+# Volumes persistants
+volumes:
+  postgres_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+
+# Réseau interne
 networks:
-  p2b_network:
+  etnair_network:
     driver: bridge

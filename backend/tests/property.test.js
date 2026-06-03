@@ -1,119 +1,181 @@
-const request = require("supertest");
-const jwt = require("jsonwebtoken");
-const app = require("../src/app");
+﻿const request = require('supertest');
+const app = require('../src/app');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-jest.mock("../src/config/prisma", () => ({
-  property: {
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
-  user: { findUnique: jest.fn() },
-}));
+describe('ANNONCES — CRUD Properties', () => {
 
-jest.mock("../src/config/swagger", () => ({}));
+  let guestToken;
+  let hostToken;
 
-const prisma = require("../src/config/prisma");
+  beforeAll(async () => {
+    // Réinitialiser les prix des propriétés testées
+    await prisma.property.update({ where: { id: 1 }, data: { price_per_night: 85.00 } });
+    await prisma.property.update({ where: { id: 3 }, data: { price_per_night: 320.00 } });
 
-process.env.JWT_SECRET = "test_secret";
-const validToken = jwt.sign({ id: 1, email: "host@test.com" }, "test_secret");
+    const guestLogin = await request(app)
+      .post('/auth/login')
+      .send({ email: 'oliver.davis@email.com', password: 'password' });
+    guestToken = guestLogin.body.token;
 
-const mockProperty = {
-  id: 1,
-  title: "Appartement Paris",
-  description: "Bel appart",
-  price_per_night: 85.0,
-  max_guests: 4,
-  owner_id: 1,
-};
-
-describe("GET /properties", () => {
-  it("retourne la liste des logements", async () => {
-    prisma.property.findMany.mockResolvedValue([mockProperty]);
-
-    const res = await request(app).get("/properties");
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(Array.isArray(res.body.data)).toBe(true);
-  });
-});
-
-describe("GET /properties/:id", () => {
-  it("retourne un logement par son ID", async () => {
-    prisma.property.findUnique.mockResolvedValue(mockProperty);
-
-    const res = await request(app).get("/properties/1");
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty("title");
+    const hostLogin = await request(app)
+      .post('/auth/login')
+      .send({ email: 'james.carter@email.com', password: 'password' });
+    hostToken = hostLogin.body.token;
   });
 
-  it("retourne 404 si logement introuvable", async () => {
-    prisma.property.findUnique.mockResolvedValue(null);
-
-    const res = await request(app).get("/properties/999");
-
-    expect(res.status).toBe(404);
-  });
-});
-
-describe("POST /properties", () => {
-  it("refuse sans token JWT (401)", async () => {
-    const res = await request(app).post("/properties").send(mockProperty);
-    expect(res.status).toBe(401);
+  afterAll(async () => {
+    await prisma.$disconnect();
   });
 
-  it("crée un logement avec token valide", async () => {
-    prisma.property.create.mockResolvedValue(mockProperty);
+  // GET ALL
+  describe('GET /annonces', () => {
 
-    const res = await request(app)
-      .post("/properties")
-      .set("authorization", validToken)
-      .send(mockProperty);
+    it('doit retourner la liste des annonces (sans auth)', async () => {
+      const res = await request(app).get('/annonces');
 
-    expect(res.status).toBe(201);
-    expect(res.body.data).toHaveProperty("title");
-  });
-});
+      expect(res.statusCode).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0);
+    });
 
-describe("PUT /properties/:id", () => {
-  it("refuse sans token JWT (401)", async () => {
-    const res = await request(app)
-      .put("/properties/1")
-      .send({ title: "Modifié" });
-    expect(res.status).toBe(401);
-  });
+    it('doit filtrer par ville (Paris)', async () => {
+      const res = await request(app).get('/annonces?city=Paris');
 
-  it("met à jour un logement avec token valide", async () => {
-    prisma.property.update.mockResolvedValue({ ...mockProperty, title: "Modifié" });
+      expect(res.statusCode).toBe(200);
+      res.body.forEach(p => expect(p.city).toBe('Paris'));
+    });
 
-    const res = await request(app)
-      .put("/properties/1")
-      .set("authorization", validToken)
-      .send({ title: "Modifié" });
+    it('doit filtrer par prix max (100€)', async () => {
+      const res = await request(app).get('/annonces?max_price=100');
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.title).toBe("Modifié");
-  });
-});
-
-describe("DELETE /properties/:id", () => {
-  it("refuse sans token JWT (401)", async () => {
-    const res = await request(app).delete("/properties/1");
-    expect(res.status).toBe(401);
+      expect(res.statusCode).toBe(200);
+      res.body.forEach(p => expect(parseFloat(p.price_per_night)).toBeLessThanOrEqual(100));
+    });
   });
 
-  it("supprime un logement avec token valide", async () => {
-    prisma.property.delete.mockResolvedValue(mockProperty);
+  // GET BY ID
+  describe('GET /annonces/:id', () => {
 
-    const res = await request(app)
-      .delete("/properties/1")
-      .set("authorization", validToken);
+    it('doit retourner le Charming Studio Montmartre (id=1)', async () => {
+      const res = await request(app).get('/annonces/1');
 
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe("Property deleted successfully");
+      expect(res.statusCode).toBe(200);
+      expect(res.body.id).toBe(1);
+      expect(res.body.title).toBe('Charming Studio in Montmartre');
+      expect(res.body.city).toBe('Paris');
+      expect(parseFloat(res.body.price_per_night)).toBe(85.00);
+    });
+
+    it('doit retourner la Luxury Villa Lyon (id=3)', async () => {
+      const res = await request(app).get('/annonces/3');
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.title).toBe('Luxury Villa with Pool in Lyon');
+      expect(parseFloat(res.body.price_per_night)).toBe(320.00);
+      expect(res.body.max_guests).toBe(8);
+    });
+
+    it('doit retourner 404 pour un id inexistant', async () => {
+      const res = await request(app).get('/annonces/9999');
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  // POST
+  describe('POST /annonces', () => {
+
+    it('un host peut créer une annonce', async () => {
+      const res = await request(app)
+        .post('/annonces')
+        .set('Authorization', `Bearer ${hostToken}`)
+        .send({
+          title: 'Test Apartment Jest',
+          description: 'Appartement de test créé par Jest.',
+          price_per_night: 99.99,
+          max_guests: 3,
+          city: 'Marseille',
+          country: 'France',
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body).toHaveProperty('id');
+      expect(res.body.title).toBe('Test Apartment Jest');
+    });
+
+    it('un guest ne peut PAS créer une annonce (403)', async () => {
+      const res = await request(app)
+        .post('/annonces')
+        .set('Authorization', `Bearer ${guestToken}`)
+        .send({
+          title: 'Tentative guest',
+          description: 'Pas autorisé.',
+          price_per_night: 50,
+          max_guests: 2,
+        });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('sans token → 401', async () => {
+      const res = await request(app)
+        .post('/annonces')
+        .send({
+          title: 'Sans token',
+          description: 'Non autorisé.',
+          price_per_night: 50,
+          max_guests: 2,
+        });
+
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('données manquantes → 400', async () => {
+      const res = await request(app)
+        .post('/annonces')
+        .set('Authorization', `Bearer ${hostToken}`)
+        .send({ title: 'Incomplet' });
+
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  // PUT
+  describe('PUT /annonces/:id', () => {
+
+    it('un host peut modifier une annonce', async () => {
+      const res = await request(app)
+        .put('/annonces/2')
+        .set('Authorization', `Bearer ${hostToken}`)
+        .send({ price_per_night: 155.00 });
+
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('modifier une annonce inexistante → 404', async () => {
+      const res = await request(app)
+        .put('/annonces/9999')
+        .set('Authorization', `Bearer ${hostToken}`)
+        .send({ price_per_night: 90.00 });
+
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  // DELETE
+  describe('DELETE /annonces/:id', () => {
+
+    it('sans token → 401', async () => {
+      const res = await request(app).delete('/annonces/8');
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('annonce inexistante → 404', async () => {
+      const res = await request(app)
+        .delete('/annonces/9999')
+        .set('Authorization', `Bearer ${hostToken}`);
+
+      expect(res.statusCode).toBe(404);
+    });
   });
 });

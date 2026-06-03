@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const wishlistController = require("../controllers/wishlist.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
+const auth = authMiddleware;
 
 /**
  * @swagger
@@ -20,7 +21,9 @@ const authMiddleware = require("../middlewares/auth.middleware");
  *       200:
  *         description: Liste des favoris
  */
-router.get("/", wishlistController.getWishlist);
+router.get("/",                         auth, wishlistController.getMyWishlist);
+router.get("/check/:propertyId",        auth, wishlistController.checkWishlist);
+router.delete("/:propertyId",           auth, wishlistController.removeFromWishlist);
 
 /**
  * @swagger
@@ -50,6 +53,6 @@ router.get("/", wishlistController.getWishlist);
  *       500:
  *         description: Erreur serveur
  */
-router.post("/", authMiddleware, wishlistController.addToWishlist);
+router.post("/", auth, wishlistController.addToWishlist);
 
 module.exports = router;

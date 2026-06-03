@@ -1,7 +1,17 @@
 const express = require("express");
 const router = express.Router();
+const { body, query } = require("express-validator");
 const controller = require("../controllers/property.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
+const validate = require("../middlewares/validate.middleware");
+
+const createPropertyRules = [
+  body("title").trim().notEmpty().withMessage("Le titre est obligatoire"),
+  body("description").trim().notEmpty().withMessage("La description est obligatoire"),
+  body("price_per_night").isFloat({ min: 1 }).withMessage("Le prix doit être un nombre positif"),
+  body("max_guests").isInt({ min: 1 }).withMessage("La capacité doit être un entier positif"),
+  body("property_type").optional().isIn(["studio", "apartment", "house", "villa"]).withMessage("Type invalide"),
+];
 
 /**
  * @swagger
@@ -88,7 +98,7 @@ router.get("/:id", controller.getPropertyById);
  *       500:
  *         description: Erreur serveur
  */
-router.post("/", authMiddleware, controller.createProperty);
+router.post("/", authMiddleware, createPropertyRules, validate, controller.createProperty);
 
 /**
  * @swagger

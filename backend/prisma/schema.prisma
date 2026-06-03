@@ -31,13 +31,14 @@ model User {
   updated_at      DateTime  @updatedAt
 
   // Relations
-  properties    Property[]
-  bookings      Booking[]
-  reviews       Review[]
-  wishlists     Wishlist[]
+  properties        Property[]
+  bookings          Booking[]
+  reviews           Review[]
+  wishlists         Wishlist[]
   sent_messages     Message[] @relation("SentMessages")
   received_messages Message[] @relation("ReceivedMessages")
-  notifications Notification[]
+  notifications     Notification[]
+  service_bookings  ServiceBooking[] @relation("ServiceBookings")
 
   @@map("users")
 }
@@ -231,7 +232,50 @@ model Availability {
 }
 
 // ============================================================
-// MODEL 12 — Payment
+// MODEL 12 — Service (activités & extras)
+// ============================================================
+model Service {
+  id           Int      @id @default(autoincrement())
+  title        String   @db.VarChar(255)
+  description  String?
+  category     String   @db.VarChar(50)  // wellness | gastronomy | adventure | culture | sport | entertainment | transport | nature
+  price        Decimal  @db.Decimal(10, 2)
+  duration     String?  @db.VarChar(50)  // "2h", "Demi-journée", "Journée"
+  max_persons  Int      @default(10)
+  location     String?  @db.VarChar(255)
+  image_url    String?
+  is_active    Boolean  @default(true)
+  provider     String?  @db.VarChar(255)
+  rating       Decimal? @db.Decimal(3, 1)
+  created_at   DateTime @default(now())
+
+  bookings ServiceBooking[]
+
+  @@map("services")
+}
+
+// ============================================================
+// MODEL 13 — ServiceBooking (réservation d'un service)
+// ============================================================
+model ServiceBooking {
+  id          Int      @id @default(autoincrement())
+  service_id  Int
+  user_id     Int
+  date        DateTime?
+  persons     Int      @default(1)
+  total_price Decimal  @db.Decimal(10, 2)
+  status      String   @default("pending") @db.VarChar(20)
+  notes       String?
+  created_at  DateTime @default(now())
+
+  service Service @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  user    User    @relation("ServiceBookings", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("service_bookings")
+}
+
+// ============================================================
+// MODEL 14 — Payment
 // ============================================================
 model Payment {
   id             Int      @id @default(autoincrement())

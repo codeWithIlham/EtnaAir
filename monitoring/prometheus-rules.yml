@@ -1,0 +1,79 @@
+﻿groups:
+  # API ETNAir
+  - name: etnair-api
+    interval: 30s
+    rules:
+
+      # API indisponible
+      - alert: APIDown
+        expr: up{job="etnair-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "🚨 API ETNAir indisponible"
+          description: "L'API ETNAir n'est plus accessible depuis {{ $value | humanizeDuration }}."
+
+      # Taux d'erreur 5xx > 5%
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status_code=~"5.."}[5m]) /
+          rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "⚠️ Taux d'erreur 5xx élevé"
+          description: "Plus de 5% des requêtes retournent une erreur 5xx (actuel: {{ $value | humanizePercentage }})."
+
+      # Latence p95 > 2s
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "⏱ Latence API élevée (p95)"
+          description: "Le 95e percentile de latence est {{ $value | humanizeDuration }} (seuil: 2s)."
+
+      # Trop de requêtes simultanées
+      - alert: HighRequestRate
+        expr: rate(http_requests_total[1m]) > 100
+        for: 1m
+        labels:
+          severity: info
+          service: api
+        annotations:
+          summary: "📈 Taux de requêtes élevé"
+          description: "Plus de 100 req/s détectées (actuel: {{ $value | humanize }} req/s)."
+
+  # Ressources système
+  - name: system-resources
+    interval: 60s
+    rules:
+
+      # Mémoire Node.js > 400 MB
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="etnair-api"} > 400 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "💾 Utilisation mémoire élevée"
+          description: "L'API utilise {{ $value | humanize1024 }}B de mémoire (seuil: 400 MB)."
+
+      # Event loop lag > 100ms
+      - alert: EventLoopLag
+        expr: nodejs_eventloop_lag_seconds{job="etnair-api"} > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "🔄 Event loop Node.js lente"
+          description: "Le lag de l'event loop est {{ $value | humanizeDuration }} (seuil: 100ms)."

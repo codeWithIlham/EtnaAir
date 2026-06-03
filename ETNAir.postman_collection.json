@@ -1,0 +1,258 @@
+{
+  "info": {
+    "name": "ETNAir API",
+    "description": "Collection Postman complète pour l'API ETNAir — plateforme de location.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 Auth",
+      "item": [
+
+        {
+          "name": "Register — Créer un compte",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Oliver\",\n  \"last_name\": \"Davis\",\n  \"email\": \"oliver.davis@email.com\",\n  \"password\": \"password123\",\n  \"phone_number\": \"+33600000006\",\n  \"bio\": \"Frequent traveler, love discovering new cities.\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "201 — Compte créé",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"user\": {\n    \"id\": 6,\n    \"first_name\": \"Oliver\",\n    \"last_name\": \"Davis\",\n    \"email\": \"oliver.davis@email.com\",\n    \"role\": \"guest\",\n    \"is_verified\": false\n  }\n}"
+            },
+            {
+              "name": "409 — Email déjà utilisé",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"message\": \"Email already in use\",\n  \"status\": 409\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "Login — Se connecter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) {",
+                  "  pm.collectionVariables.set('token', res.token);",
+                  "  console.log('Token sauvegardé ✅');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"oliver.davis@email.com\",\n  \"password\": \"password\"\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "200 — Connexion réussie",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"user\": {\n    \"id\": 6,\n    \"first_name\": \"Oliver\",\n    \"email\": \"oliver.davis@email.com\",\n    \"role\": \"guest\"\n  }\n}"
+            },
+            {
+              "name": "401 — Identifiants incorrects",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"message\": \"Invalid credentials\",\n  \"status\": 401\n}"
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "👤 Utilisateurs",
+      "item": [
+
+        {
+          "name": "GET — Lister tous les utilisateurs",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+
+        {
+          "name": "GET — Détail utilisateur (id=6)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/users/6",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "🏠 Annonces",
+      "item": [
+
+        {
+          "name": "GET — Lister toutes les annonces",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/annonces",
+              "host": ["{{base_url}}"],
+              "path": ["annonces"],
+              "query": [
+                { "key": "city", "value": "Paris", "disabled": true },
+                { "key": "max_price", "value": "100", "disabled": true }
+              ]
+            }
+          }
+        },
+
+        {
+          "name": "GET — Détail annonce (id=1)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/annonces/1"
+          }
+        },
+
+        {
+          "name": "POST — Créer une annonce (host)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/annonces",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Bel appartement à Lyon\",\n  \"description\": \"Appartement lumineux au centre de Lyon.\",\n  \"price_per_night\": 95.00,\n  \"property_type\": \"apartment\",\n  \"max_guests\": 3,\n  \"bedrooms\": 1,\n  \"bathrooms\": 1,\n  \"city\": \"Lyon\",\n  \"country\": \"France\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "PUT — Modifier une annonce (id=1)",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/annonces/1",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price_per_night\": 90.00\n}"
+            }
+          }
+        },
+
+        {
+          "name": "DELETE — Supprimer une annonce",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/annonces/1",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "📅 Réservations",
+      "item": [
+
+        {
+          "name": "GET — Mes réservations",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bookings",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+
+        {
+          "name": "POST — Créer une réservation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"property_id\": 2,\n  \"start_date\": \"2025-08-01\",\n  \"end_date\": \"2025-08-05\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "DELETE — Annuler une réservation (id=9)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/bookings/9",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "⭐ Avis",
+      "item": [
+
+        {
+          "name": "GET — Avis d'un logement (id=3)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/reviews/property/3"
+          }
+        },
+
+        {
+          "name": "POST — Laisser un avis",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/reviews",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"property_id\": 1,\n  \"booking_id\": 1,\n  \"rating\": 5,\n  \"comment\": \"Séjour parfait, studio très propre et bien situé !\"\n}"
+            }
+          }
+        }
+
+      ]
+    }
+
+  ]
+}

@@ -1,0 +1,11 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etnair-config
+  namespace: etnair
+data:
+  PORT: "3000"
+  NODE_ENV: "production"
+  MINIO_ENDPOINT: "etnair-minio-service"
+  MINIO_PORT: "9000"
+  MINIO_BUCKET: "etnair-images"

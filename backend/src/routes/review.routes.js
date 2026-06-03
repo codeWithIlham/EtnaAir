@@ -12,15 +12,24 @@ const authMiddleware = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
- * /reviews:
+ * /reviews/property/{id}:
  *   get:
- *     summary: Lister tous les avis
+ *     summary: Lister les avis d'un logement
  *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID du logement
  *     responses:
  *       200:
  *         description: Liste des avis
+ *       404:
+ *         description: Logement introuvable
  */
-router.get("/", reviewController.getAllReviews);
+router.get("/property/:id", reviewController.getReviewsByProperty);
 
 /**
  * @swagger
@@ -36,19 +45,18 @@ router.get("/", reviewController.getAllReviews);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [reviewer_id, property_id, rating]
+ *             required: [property_id, booking_id, rating]
  *             properties:
+ *               property_id:
+ *                 type: integer
+ *                 example: 1
  *               booking_id:
  *                 type: integer
  *                 example: 1
- *               reviewer_id:
- *                 type: integer
- *                 example: 1
- *               property_id:
- *                 type: integer
- *                 example: 2
  *               rating:
  *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
  *                 example: 5
  *               comment:
  *                 type: string
@@ -56,8 +64,10 @@ router.get("/", reviewController.getAllReviews);
  *     responses:
  *       201:
  *         description: Avis publié
- *       500:
- *         description: Erreur serveur
+ *       400:
+ *         description: Données invalides (rating hors limites, booking_id manquant)
+ *       401:
+ *         description: Non authentifié
  */
 router.post("/", authMiddleware, reviewController.createReview);
 

@@ -1,47 +1,31 @@
 const wishlistService = require("../services/wishlist.service");
 
-exports.getWishlist = async (req, res) => {
-
+exports.getMyWishlist = async (req, res) => {
   try {
-
-    const wishlist =
-      await wishlistService.getWishlist();
-
-    res.status(200).json({
-      success: true,
-      data: wishlist
-    });
-
-  } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-
-  }
-
+    const items = await wishlistService.getMyWishlist(req.user.id);
+    res.json(items);
+  } catch (e) { res.status(500).json({ message: e.message }); }
 };
 
 exports.addToWishlist = async (req, res) => {
-
   try {
+    const { property_id } = req.body;
+    if (!property_id) return res.status(400).json({ message: "property_id requis" });
+    const item = await wishlistService.addToWishlist(req.user.id, parseInt(property_id));
+    res.status(201).json(item);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
 
-    const item =
-      await wishlistService.addToWishlist(req.body);
+exports.removeFromWishlist = async (req, res) => {
+  try {
+    await wishlistService.removeFromWishlist(req.user.id, parseInt(req.params.propertyId));
+    res.json({ message: "Retiré des favoris" });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+};
 
-    res.status(201).json({
-      success: true,
-      data: item
-    });
-
-  } catch (error) {
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-
-  }
-
+exports.checkWishlist = async (req, res) => {
+  try {
+    const liked = await wishlistService.isInWishlist(req.user.id, parseInt(req.params.propertyId));
+    res.json({ liked });
+  } catch (e) { res.status(500).json({ message: e.message }); }
 };

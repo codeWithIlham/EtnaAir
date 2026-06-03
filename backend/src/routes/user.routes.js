@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/user.controller");
+const auth = require("../middlewares/auth.middleware");
 
 /**
  * @swagger
@@ -52,5 +53,13 @@ router.get("/", controller.getUsers);
  *         description: Utilisateur créé
  */
 router.post("/", controller.createUser);
+
+// Routes authentifiées
+router.get("/me",              auth, controller.getMe);
+router.put("/me",              auth, controller.updateProfile);
+router.patch("/me/become-host",auth, controller.becomeHost);
+router.get("/:id",             controller.getUserById);
+router.patch("/:id/role",      auth, controller.updateRole);
+router.delete("/:id",          auth, controller.deleteUser);
 
 module.exports = router;

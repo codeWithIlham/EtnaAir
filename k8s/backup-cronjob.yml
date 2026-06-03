@@ -1,0 +1,140 @@
+﻿---
+# Secret : credentials backup
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-secret
+  namespace: etnair
+type: Opaque
+stringData:
+  POSTGRES_USER: etnair_user
+  POSTGRES_PASSWORD: etnair_pass
+  POSTGRES_DB: etnair_db
+  POSTGRES_HOST: postgres
+  # MinIO pour stocker les backups (optionnel)
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: minioadmin
+  MINIO_SECRET_KEY: minioadmin
+  BACKUP_BUCKET: etnair-backups
+---
+# CronJob : backup PostgreSQL (chaque jour à 2h00)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: etnair
+spec:
+  schedule: "0 2 * * *"  # Tous les jours à 2h UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:15-alpine
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  FILENAME="etnair_backup_${TIMESTAMP}.sql"
+                  echo "📦 Backup démarré : ${FILENAME}"
+
+                  # Créer le dump
+                  PGPASSWORD=${POSTGRES_PASSWORD} pg_dump \
+                    -h ${POSTGRES_HOST} \
+                    -U ${POSTGRES_USER} \
+                    -d ${POSTGRES_DB} \
+                    --no-password \
+                    > /tmp/${FILENAME}
+
+                  echo "✅ Dump créé ($(wc -c < /tmp/${FILENAME}) bytes)"
+
+                  # Upload vers MinIO avec mc (MinIO Client) si disponible
+                  if command -v mc &> /dev/null; then
+                    mc alias set minio http://${MINIO_ENDPOINT} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+                    mc mb --ignore-existing minio/${BACKUP_BUCKET}
+                    mc cp /tmp/${FILENAME} minio/${BACKUP_BUCKET}/${FILENAME}
+                    echo "✅ Backup uploadé vers MinIO"
+                    # Supprimer les backups > 30 jours
+                    mc rm --recursive --force --older-than 30d minio/${BACKUP_BUCKET} || true
+                  else
+                    # Sauvegarder dans le volume local
+                    cp /tmp/${FILENAME} /backups/${FILENAME}
+                    echo "✅ Backup sauvegardé localement"
+                    # Garder seulement les 7 derniers backups
+                    ls -t /backups/*.sql | tail -n +8 | xargs rm -f || true
+                  fi
+
+                  echo "🎉 Backup terminé : ${FILENAME}"
+              env:
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: POSTGRES_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: POSTGRES_PASSWORD
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: POSTGRES_DB
+                - name: POSTGRES_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: POSTGRES_HOST
+                - name: MINIO_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: MINIO_ENDPOINT
+                - name: MINIO_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: MINIO_ACCESS_KEY
+                - name: MINIO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: MINIO_SECRET_KEY
+                - name: BACKUP_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-secret
+                      key: BACKUP_BUCKET
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "200m"
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-pvc
+---
+# PVC pour les backups locaux
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: etnair
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi

@@ -1,0 +1,180 @@
+﻿# ============================================================
+# ETNAir — GitLab CI/CD Pipeline
+# Steps : test → build → deploy
+# ============================================================
+
+stages:
+  - test
+  - build
+  - deploy
+  - performance
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_API: $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHORT_SHA
+  IMAGE_FRONTEND: $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
+  IMAGE_API_LATEST: $CI_REGISTRY_IMAGE/api:latest
+  IMAGE_FRONTEND_LATEST: $CI_REGISTRY_IMAGE/frontend:latest
+
+# STAGE 1 : Tests
+
+test:backend:
+  stage: test
+  image: node:20-alpine
+  services:
+    - name: postgres:15-alpine
+      alias: db
+      variables:
+        POSTGRES_USER: etnair_user
+        POSTGRES_PASSWORD: etnair_pass
+        POSTGRES_DB: etnair_db
+  variables:
+    DATABASE_URL: "postgresql://etnair_user:etnair_pass@db:5432/etnair_db"
+    JWT_SECRET: "ci_test_secret_key"
+  before_script:
+    - cd backend
+    - npm ci
+    - npx prisma generate
+    - npx prisma migrate deploy
+    - node prisma/seed.js
+  script:
+    - npm test -- --forceExit
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      junit: backend/junit.xml
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+    - merge_requests
+
+test:frontend:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run test -- --run
+  artifacts:
+    reports:
+      junit: frontend/junit.xml
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# STAGE 2 : Build Docker images
+
+build:api:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_API -t $IMAGE_API_LATEST ./backend
+    - docker push $IMAGE_API
+    - docker push $IMAGE_API_LATEST
+  only:
+    - main
+    - develop
+
+build:frontend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_FRONTEND -t $IMAGE_FRONTEND_LATEST ./frontend
+    - docker push $IMAGE_FRONTEND
+    - docker push $IMAGE_FRONTEND_LATEST
+  only:
+    - main
+    - develop
+
+# STAGE 3 : Deploy
+
+deploy:staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  environment:
+    name: staging
+    url: https://app.etnair.com
+  before_script:
+    - echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig
+    - export KUBECONFIG=/tmp/kubeconfig
+  script:
+    # Mettre à jour les images dans Kubernetes
+    - kubectl set image deployment/api api=$IMAGE_API -n etnair
+    - kubectl set image deployment/frontend frontend=$IMAGE_FRONTEND -n etnair
+    # Attendre le rollout
+    - kubectl rollout status deployment/api -n etnair --timeout=120s
+    - kubectl rollout status deployment/frontend -n etnair --timeout=120s
+    - echo "✅ Déploiement terminé sur staging"
+  only:
+    - develop
+
+deploy:production:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  environment:
+    name: production
+    url: https://app.etnair.com
+  before_script:
+    - echo "$KUBE_CONFIG_PROD" | base64 -d > /tmp/kubeconfig
+    - export KUBECONFIG=/tmp/kubeconfig
+  script:
+    - kubectl set image deployment/api api=$IMAGE_API -n etnair
+    - kubectl set image deployment/frontend frontend=$IMAGE_FRONTEND -n etnair
+    - kubectl rollout status deployment/api -n etnair --timeout=120s
+    - kubectl rollout status deployment/frontend -n etnair --timeout=120s
+    - echo "✅ Déploiement en production terminé"
+  only:
+    - main
+  when: manual  # Déploiement production = manuel
+
+# Sécurité
+
+security:audit:
+  stage: test
+  image: node:20-alpine
+  script:
+    - cd backend && npm audit --audit-level=high || true
+    - cd ../frontend && npm audit --audit-level=high || true
+  allow_failure: true
+  only:
+    - main
+    - merge_requests
+
+# STAGE 4 : Tests de performance (K6)
+
+performance:smoke:
+  stage: performance
+  image: grafana/k6:latest
+  script:
+    - k6 run k6/smoke-test.js --env BASE_URL=${API_URL:-http://etnair-api:3000}
+  allow_failure: true
+  only:
+    - main
+    - develop
+
+performance:load:
+  stage: performance
+  image: grafana/k6:latest
+  script:
+    - k6 run k6/load-test.js --env BASE_URL=${API_URL:-http://etnair-api:3000}
+  artifacts:
+    reports:
+      performance: k6-results.json
+    expire_in: 1 week
+  allow_failure: true
+  when: manual
+  only:
+    - main

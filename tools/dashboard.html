@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ETNAir — Dashboard Test API</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #1e3a8a, #7c3aed);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+    header h1 span { color: #f59e0b; }
+
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    #api-status { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+    #api-status.online { background: #22c55e; }
+    #token-info { color: #94a3b8; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #token-info.active { color: #86efac; }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 16px 32px 0;
+      border-bottom: 1px solid #1e293b;
+      background: #0f172a;
+    }
+    .tab {
+      padding: 10px 20px;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748b;
+      border: 1px solid transparent;
+      border-bottom: none;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: #cbd5e1; background: #1e293b; }
+    .tab.active {
+      color: #f8fafc;
+      background: #1e293b;
+      border-color: #334155;
+    }
+    .tab .emoji { margin-right: 6px; }
+
+    /* ── LAYOUT ── */
+    .container { padding: 24px 32px; max-width: 1400px; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    /* ── CARD ── */
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h3 .badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .badge-get { background: #166534; color: #86efac; }
+    .badge-post { background: #1e3a8a; color: #93c5fd; }
+    .badge-put { background: #713f12; color: #fde68a; }
+    .badge-delete { background: #7f1d1d; color: #fca5a5; }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; font-weight: 500; }
+    input, select, textarea {
+      width: 100%;
+      padding: 9px 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #6366f1; }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* ── BUTTON ── */
+    button {
+      padding: 9px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-warning:hover { background: #b45309; }
+    .btn-secondary { background: #334155; color: #cbd5e1; }
+    .btn-secondary:hover { background: #475569; }
+
+    /* ── RESPONSE ── */
+    .response-box {
+      margin-top: 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .response-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .response-status { font-weight: 700; }
+    .status-2xx { color: #22c55e; }
+    .status-4xx { color: #f59e0b; }
+    .status-5xx { color: #ef4444; }
+    .response-body {
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #a5f3fc;
+      max-height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── TABLE ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+    .data-table th {
+      text-align: left;
+      padding: 10px 12px;
+      background: #0f172a;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .data-table td { padding: 10px 12px; border-top: 1px solid #1e293b; }
+    .data-table tr:hover td { background: #1e293b33; }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-guest { background: #0c4a6e; color: #7dd3fc; }
+    .pill-host { background: #365314; color: #bef264; }
+    .pill-admin { background: #4c1d95; color: #c4b5fd; }
+    .pill-pending { background: #713f12; color: #fde68a; }
+    .pill-confirmed { background: #166534; color: #86efac; }
+    .pill-completed { background: #1e3a8a; color: #93c5fd; }
+    .pill-cancelled { background: #450a0a; color: #fca5a5; }
+    .pill-active { background: #166534; color: #86efac; }
+
+    /* ── STARS ── */
+    .stars { color: #f59e0b; font-size: 14px; }
+
+    /* ── FILTERS ── */
+    .filters {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: flex-end;
+    }
+    .filters .form-group { margin: 0; flex: 1; }
+    .filters button { width: auto; margin: 0; }
+
+    /* ── ALERT ── */
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    .alert-success { background: #14532d; border: 1px solid #16a34a; color: #86efac; }
+    .alert-error { background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+    .alert-info { background: #0c2d48; border: 1px solid #0369a1; color: #7dd3fc; }
+
+    /* ── EMPTY ── */
+    .empty { text-align: center; padding: 40px; color: #475569; font-size: 14px; }
+
+    /* ── SCROLL ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    /* ── PROPERTY CARD ── */
+    .property-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .property-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .property-card:hover { border-color: #6366f1; }
+    .property-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #f1f5f9; }
+    .property-card .price { font-size: 20px; font-weight: 700; color: #f59e0b; }
+    .property-card .price span { font-size: 12px; color: #64748b; font-weight: 400; }
+    .property-card .meta { font-size: 12px; color: #64748b; margin: 6px 0; }
+    .property-card .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .property-card .actions button { margin: 0; padding: 6px 10px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🏠 ETN<span>Air</span> — Dashboard Test API</h1>
+  <div id="status-bar">
+    <div id="api-status"></div>
+    <span id="api-status-text">Vérification...</span>
+    <span id="token-info">Non connecté</span>
+    <button onclick="logout()" style="width:auto;padding:6px 14px;font-size:12px;background:#334155;color:#cbd5e1;border-radius:6px;border:none;cursor:pointer;display:none" id="logout-btn">Déconnexion</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('auth')"><span class="emoji">🔐</span>Auth</div>
+  <div class="tab" onclick="switchTab('annonces')"><span class="emoji">🏠</span>Annonces</div>
+  <div class="tab" onclick="switchTab('bookings')"><span class="emoji">📅</span>Réservations</div>
+  <div class="tab" onclick="switchTab('reviews')"><span class="emoji">⭐</span>Avis</div>
+  <div class="tab" onclick="switchTab('users')"><span class="emoji">👤</span>Utilisateurs</div>
+</div>
+
+<div class="container">
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- AUTH                                                        -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="panel-auth" class="panel active">
+    <div class="grid-2">
+
+      <!-- LOGIN -->
+      <div class="card">
+        <h3><span class="badge badge-post">POST</span> /auth/login</h3>
+        <div class="form-group">
+          <label>Email</label>
+          <select id="login-preset" onchange="fillLogin()">
+            <option value="">-- Choisir un utilisateur --</option>
+            <option value="admin@etnair.com|password">👑 Admin — admin@etnair.com</option>
+            <option value="james.carter@email.com|password">🏠 Host — james.carter@email.com</option>
+            <option value="sophie.martin@email.com|password">🏠 Host — sophie.martin@email.com</option>
+            <option value="oliver.davis@email.com|password">👤 Guest — oliver.davis@email.com</option>
+            <option value="emma.wilson@email.com|password">👤 Guest — emma.wilson@email.com</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Email (manuel)</label>
+          <input type="email" id="login-email" placeholder="email@example.com" />
+        </div>
+        <div class="form-group">
+          <label>Mot de passe</label>
+          <input type="password" id="login-password" value="password" />
+        </div>
+        <button class="btn-primary" onclick="doLogin()">Se connecter →</button>
+        <div id="resp-login"></div>
+      </div>
+
+      <!-- REGISTER -->
+      <div class="card">
+        <h3><span class="badge badge-post">POST</span> /auth/register</h3>
+        <div class="form-group">
+          <label>Prénom</label>
+          <input type="text" id="reg-first" placeholder="Jean" />
+        </div>
+        <div class="form-group">
+          <label>Nom</label>
+          <input type="text" id="reg-last" placeholder="Dupont" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="jean.dupont@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Mot de passe (min 6 caractères)</label>
+          <input type="password" id="reg-password" placeholder="MonMotDePasse123!" />
+        </div>
+        <button class="btn-success" onclick="doRegister()">Créer le compte</button>
+        <div id="resp-register"></div>
+      </div>
+
+    </div>
+
+    <!-- Token actuel -->
+    <div class="card" style="margin-top:20px" id="token-card" style="display:none">
+      <h3>🎫 Token JWT actuel</h3>
+      <div id="token-display" class="response-body" style="background:#0f172a;border-radius:8px;padding:12px;font-size:11px;word-break:break-all;color:#86efac"></div>
+      <div id="decoded-display" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- ANNONCES                                                    -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="panel-annonces" class="panel">
+
+    <!-- Filtres -->
+    <div class="card" style="margin-bottom:20px">
+      <h3><span class="badge badge-get">GET</span> /annonces — Filtres</h3>
+      <div class="filters">
+        <div class="form-group">
+          <label>Ville</label>
+          <input type="text" id="filter-city" placeholder="Paris, Lyon..." />
+        </div>
+        <div class="form-group">
+          <label>Prix max (€/nuit)</label>
+          <input type="number" id="filter-price" placeholder="200" />
+        </div>
+        <button class="btn-primary" style="width:auto;padding:9px 20px" onclick="loadAnnonces()">🔍 Rechercher</button>
+        <button class="btn-secondary" style="width:auto;padding:9px 20px" onclick="clearFilters()">✕ Reset</button>
+      </div>
+      <div id="annonces-container">
+        <div class="empty">Cliquez sur Rechercher pour charger les annonces</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- GET by ID -->
+      <div class="card">
+        <h3><span class="badge badge-get">GET</span> /annonces/:id</h3>
+        <div class="form-group">
+          <label>ID de l'annonce</label>
+          <input type="number" id="get-annonce-id" value="1" min="1" />
+        </div>
+        <button class="btn-primary" onclick="getAnnonce()">Récupérer</button>
+        <div id="resp-get-annonce"></div>
+      </div>
+
+      <!-- CREATE -->
+      <div class="card">
+        <h3><span class="badge badge-post">POST</span> /annonces <small style="color:#64748b;font-size:11px">(host requis)</small></h3>
+        <div class="form-group">
+          <label>Titre</label>
+          <input type="text" id="new-title" placeholder="Bel appartement centre-ville" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="new-desc" placeholder="Description du logement..."></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label>Prix/nuit (€)</label>
+            <input type="number" id="new-price" value="95" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label>Max voyageurs</label>
+            <input type="number" id="new-guests" value="3" min="1" />
+          </div>
+          <div class="form-group">
+            <label>Ville</label>
+            <input type="text" id="new-city" value="Paris" />
+          </div>
+          <div class="form-group">
+            <label>Pays</label>
+            <input type="text" id="new-country" value="France" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="new-type">
+            <option value="studio">Studio</option>
+            <option value="apartment">Apartment</option>
+            <option value="house">House</option>
+            <option value="villa">Villa</option>
+          </select>
+        </div>
+        <button class="btn-success" onclick="createAnnonce()">Créer l'annonce</button>
+        <div id="resp-create-annonce"></div>
+      </div>
+
+      <!-- UPDATE -->
+      <div class="card">
+        <h3><span class="badge badge-put">PUT</span> /annonces/:id</h3>
+        <div class="form-group">
+          <label>ID de l'annonce</label>
+          <input type="number" id="put-annonce-id" value="1" />
+        </div>
+        <div class="form-group">
+          <label>Nouveau prix/nuit (€)</label>
+          <input type="number" id="put-price" value="100" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label>Nouveau titre (optionnel)</label>
+          <input type="text" id="put-title" placeholder="Laisser vide pour ne pas modifier" />
+        </div>
+        <button class="btn-warning" onclick="updateAnnonce()">Modifier</button>
+        <div id="resp-put-annonce"></div>
+      </div>
+
+      <!-- DELETE -->
+      <div class="card">
+        <h3><span class="badge badge-delete">DELETE</span> /annonces/:id</h3>
+        <div class="form-group">
+          <label>ID de l'annonce à supprimer</label>
+          <input type="number" id="del-annonce-id" value="9" />
+        </div>
+        <div class="alert alert-error" style="margin-top:8px;margin-bottom:8px">
+          ⚠️ Action irréversible — utilisez un ID de test
+        </div>
+        <button class="btn-danger" onclick="deleteAnnonce()">Supprimer</button>
+        <div id="resp-del-annonce"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- BOOKINGS                                                    -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="panel-bookings" class="panel">
+    <div class="grid-2">
+
+      <!-- MES RESERVATIONS -->
+      <div class="card" style="grid-column:1/-1">
+        <h3><span class="badge badge-get">GET</span> /bookings — Mes réservations</h3>
+        <button class="btn-primary" onclick="loadBookings()" style="width:auto;padding:9px 20px">Charger mes réservations</button>
+        <div id="bookings-container" style="margin-top:16px">
+          <div class="empty">Cliquez pour charger</div>
+        </div>
+      </div>
+
+      <!-- CREATE BOOKING -->
+      <div class="card">
+        <h3><span class="badge badge-post">POST</span> /bookings</h3>
+        <div class="form-group">
+          <label>ID de la propriété</label>
+          <input type="number" id="book-property" value="2" min="1" />
+        </div>
+        <div class="form-group">
+          <label>Date de début</label>
+          <input type="date" id="book-start" />
+        </div>
+        <div class="form-group">
+          <label>Date de fin</label>
+          <input type="date" id="book-end" />
+        </div>
+        <button class="btn-success" onclick="createBooking()">Réserver</button>
+        <div id="resp-create-booking"></div>
+      </div>
+
+      <!-- DELETE BOOKING -->
+      <div class="card">
+        <h3><span class="badge badge-delete">DELETE</span> /bookings/:id</h3>
+        <div class="form-group">
+          <label>ID de la réservation</label>
+          <input type="number" id="del-booking-id" value="1" />
+        </div>
+        <button class="btn-danger" onclick="deleteBooking()">Annuler la réservation</button>
+        <div id="resp-del-booking"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- REVIEWS                                                     -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="panel-reviews" class="panel">
+    <div class="grid-2">
+
+      <!-- GET REVIEWS BY PROPERTY -->
+      <div class="card">
+        <h3><span class="badge badge-get">GET</span> /reviews/property/:id</h3>
+        <div class="form-group">
+          <label>ID de la propriété</label>
+          <select id="review-property-id">
+            <option value="1">1 — Charming Studio Montmartre</option>
+            <option value="2">2 — Modern Apartment Eiffel</option>
+            <option value="3" selected>3 — Luxury Villa Lyon</option>
+            <option value="4">4 — Cozy Apartment Bordeaux</option>
+            <option value="5">5 — Modern Loft Bordeaux</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="loadReviews()">Charger les avis</button>
+        <div id="reviews-container" style="margin-top:16px">
+          <div class="empty">Sélectionnez une propriété</div>
+        </div>
+      </div>
+
+      <!-- POST REVIEW -->
+      <div class="card">
+        <h3><span class="badge badge-post">POST</span> /reviews</h3>
+        <div class="form-group">
+          <label>ID de la propriété</label>
+          <input type="number" id="rev-property" value="6" />
+        </div>
+        <div class="form-group">
+          <label>ID de la réservation</label>
+          <input type="number" id="rev-booking" value="6" />
+        </div>
+        <div class="form-group">
+          <label>Note (1-5)</label>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button type="button" onclick="setRating(1)" id="star-1" style="width:40px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;font-size:16px;cursor:pointer">⭐</button>
+            <button type="button" onclick="setRating(2)" id="star-2" style="width:40px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;font-size:16px;cursor:pointer">⭐</button>
+            <button type="button" onclick="setRating(3)" id="star-3" style="width:40px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;font-size:16px;cursor:pointer">⭐</button>
+            <button type="button" onclick="setRating(4)" id="star-4" style="width:40px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;font-size:16px;cursor:pointer">⭐</button>
+            <button type="button" onclick="setRating(5)" id="star-5" style="width:40px;padding:6px;background:#1e293b;border:1px solid #334155;border-radius:6px;font-size:16px;cursor:pointer">⭐</button>
+          </div>
+          <input type="hidden" id="rev-rating" value="5" />
+        </div>
+        <div class="form-group">
+          <label>Commentaire</label>
+          <textarea id="rev-comment" placeholder="Séjour parfait !">Super séjour, je recommande vivement !</textarea>
+        </div>
+        <button class="btn-success" onclick="createReview()">Publier l'avis</button>
+        <div id="resp-create-review"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- USERS                                                       -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="panel-users" class="panel">
+    <div class="card">
+      <h3><span class="badge badge-get">GET</span> /users — Liste des utilisateurs</h3>
+      <button class="btn-primary" onclick="loadUsers()" style="width:auto;padding:9px 20px">Charger les utilisateurs</button>
+      <div id="users-container" style="margin-top:16px">
+        <div class="empty">Cliquez pour charger</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API = 'http://localhost:3000';
+  let token = localStorage.getItem('etnair_token') || null;
+  let currentRating = 5;
+
+  // ── INIT ─────────────────────────────────────────────────────
+  window.onload = () => {
+    checkApiStatus();
+    updateTokenUI();
+    setDefaultDates();
+    setRating(5);
+    setInterval(checkApiStatus, 10000);
+  };
+
+  function setDefaultDates() {
+    const start = new Date(); start.setMonth(start.getMonth() + 2);
+    const end = new Date(start); end.setDate(end.getDate() + 4);
+    document.getElementById('book-start').value = start.toISOString().split('T')[0];
+    document.getElementById('book-end').value = end.toISOString().split('T')[0];
+  }
+
+  async function checkApiStatus() {
+    try {
+      const r = await fetch(`${API}/users`, { signal: AbortSignal.timeout(3000) });
+      document.getElementById('api-status').className = 'online';
+      document.getElementById('api-status-text').textContent = 'API en ligne ✓';
+    } catch {
+      document.getElementById('api-status').className = '';
+      document.getElementById('api-status-text').textContent = 'API hors ligne';
+    }
+  }
+
+  // ── TOKEN UI ─────────────────────────────────────────────────
+  function updateTokenUI() {
+    const info = document.getElementById('token-info');
+    const logoutBtn = document.getElementById('logout-btn');
+    const tokenCard = document.getElementById('token-card');
+    const tokenDisplay = document.getElementById('token-display');
+    const decodedDisplay = document.getElementById('decoded-display');
+
+    if (token) {
+      info.textContent = '✅ Connecté';
+      info.className = 'active';
+      logoutBtn.style.display = 'block';
+      tokenCard.style.display = 'block';
+      tokenDisplay.textContent = token;
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        decodedDisplay.innerHTML = `
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div class="card" style="flex:1;min-width:180px;padding:12px">
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px">ID</div>
+              <div style="font-weight:700;color:#f1f5f9">#${payload.id || payload.userId || '?'}</div>
+            </div>
+            <div class="card" style="flex:1;min-width:180px;padding:12px">
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px">Rôle</div>
+              <div><span class="pill pill-${payload.role}">${payload.role}</span></div>
+            </div>
+            <div class="card" style="flex:1;min-width:180px;padding:12px">
+              <div style="font-size:11px;color:#64748b;margin-bottom:4px">Expiration</div>
+              <div style="font-size:12px;color:#f1f5f9">${payload.exp ? new Date(payload.exp*1000).toLocaleString('fr-FR') : '—'}</div>
+            </div>
+          </div>`;
+      } catch(e) {}
+    } else {
+      info.textContent = 'Non connecté';
+      info.className = '';
+      logoutBtn.style.display = 'none';
+      if (tokenCard) tokenCard.style.display = 'none';
+    }
+  }
+
+  function logout() {
+    token = null;
+    localStorage.removeItem('etnair_token');
+    updateTokenUI();
+    showAlert('Déconnecté', 'info', 'resp-login');
+  }
+
+  // ── FETCH HELPER ─────────────────────────────────────────────
+  async function apiFetch(method, path, body, targetId) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+
+    const start = Date.now();
+    try {
+      const res = await fetch(`${API}${path}`, opts);
+      const duration = Date.now() - start;
+      let data;
+      try { data = await res.json(); } catch { data = null; }
+
+      showResponse(targetId, res.status, data, duration);
+      return { status: res.status, data };
+    } catch (err) {
+      showResponse(targetId, 0, { error: err.message }, Date.now() - start);
+      return { status: 0, data: null };
+    }
+  }
+
+  function showResponse(targetId, status, data, duration) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const cls = status >= 500 ? 'status-5xx' : status >= 400 ? 'status-4xx' : 'status-2xx';
+    const label = status === 0 ? 'ERREUR RÉSEAU' : `${status}`;
+    el.innerHTML = `
+      <div class="response-box">
+        <div class="response-header">
+          <span class="response-status ${cls}">${label}</span>
+          <span>${duration}ms</span>
+        </div>
+        <pre class="response-body">${JSON.stringify(data, null, 2)}</pre>
+      </div>`;
+  }
+
+  function showAlert(msg, type, targetId) {
+    const el = document.getElementById(targetId);
+    if (el) el.innerHTML = `<div class="alert alert-${type === 'error' ? 'error' : type === 'success' ? 'success' : 'info'}">${msg}</div>`;
+  }
+
+  // ── TABS ─────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.target.closest('.tab').classList.add('active');
+    document.getElementById(`panel-${name}`).classList.add('active');
+  }
+
+  // ── AUTH ─────────────────────────────────────────────────────
+  function fillLogin() {
+    const val = document.getElementById('login-preset').value;
+    if (!val) return;
+    const [email, pwd] = val.split('|');
+    document.getElementById('login-email').value = email;
+    document.getElementById('login-password').value = pwd;
+  }
+
+  async function doLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!email || !password) return showAlert('Email et mot de passe requis', 'error', 'resp-login');
+
+    const { status, data } = await apiFetch('POST', '/auth/login', { email, password }, 'resp-login');
+    if (status === 200 && data?.token) {
+      token = data.token;
+      localStorage.setItem('etnair_token', token);
+      updateTokenUI();
+    }
+  }
+
+  async function doRegister() {
+    const body = {
+      first_name: document.getElementById('reg-first').value.trim(),
+      last_name: document.getElementById('reg-last').value.trim(),
+      email: document.getElementById('reg-email').value.trim(),
+      password: document.getElementById('reg-password').value,
+    };
+    if (!body.first_name || !body.last_name || !body.email || !body.password)
+      return showAlert('Tous les champs sont requis', 'error', 'resp-register');
+
+    const { status, data } = await apiFetch('POST', '/auth/register', body, 'resp-register');
+    if (status === 201 && data?.token) {
+      token = data.token;
+      localStorage.setItem('etnair_token', token);
+      updateTokenUI();
+    }
+  }
+
+  // ── ANNONCES ─────────────────────────────────────────────────
+  async function loadAnnonces() {
+    const city = document.getElementById('filter-city').value.trim();
+    const price = document.getElementById('filter-price').value;
+    let qs = '';
+    if (city) qs += `city=${encodeURIComponent(city)}&`;
+    if (price) qs += `max_price=${price}&`;
+
+    const { status, data } = await apiFetch('GET', `/annonces${qs ? '?' + qs : ''}`, null, 'annonces-container');
+
+    if (status === 200 && Array.isArray(data)) {
+      if (data.length === 0) {
+        document.getElementById('annonces-container').innerHTML = '<div class="empty">Aucune annonce trouvée</div>';
+        return;
+      }
+      const html = data.map(p => `
+        <div class="property-card">
+          <h4>${p.title}</h4>
+          <div class="meta">📍 ${p.city || '—'}, ${p.country || '—'} &nbsp;·&nbsp; 👥 ${p.max_guests} max</div>
+          <div class="meta">🏠 ${p.property_type || 'N/A'} &nbsp;·&nbsp; <span class="pill pill-${p.status || 'active'}">${p.status || 'active'}</span></div>
+          <div class="price">${parseFloat(p.price_per_night).toFixed(2)} € <span>/ nuit</span></div>
+          <div class="actions">
+            <button class="btn-secondary" onclick="document.getElementById('get-annonce-id').value=${p.id};getAnnonce()">Voir</button>
+            <button class="btn-primary" onclick="document.getElementById('book-property').value=${p.id};switchTab('bookings')">Réserver</button>
+          </div>
+        </div>`).join('');
+      document.getElementById('annonces-container').innerHTML = `<div class="property-grid">${html}</div>`;
+    }
+  }
+
+  function clearFilters() {
+    document.getElementById('filter-city').value = '';
+    document.getElementById('filter-price').value = '';
+    loadAnnonces();
+  }
+
+  async function getAnnonce() {
+    const id = document.getElementById('get-annonce-id').value;
+    await apiFetch('GET', `/annonces/${id}`, null, 'resp-get-annonce');
+  }
+
+  async function createAnnonce() {
+    const body = {
+      title: document.getElementById('new-title').value.trim(),
+      description: document.getElementById('new-desc').value.trim(),
+      price_per_night: parseFloat(document.getElementById('new-price').value),
+      max_guests: parseInt(document.getElementById('new-guests').value),
+      city: document.getElementById('new-city').value.trim(),
+      country: document.getElementById('new-country').value.trim(),
+      property_type: document.getElementById('new-type').value,
+    };
+    if (!body.title || !body.description) return showAlert('Titre et description requis', 'error', 'resp-create-annonce');
+    await apiFetch('POST', '/annonces', body, 'resp-create-annonce');
+  }
+
+  async function updateAnnonce() {
+    const id = document.getElementById('put-annonce-id').value;
+    const body = { price_per_night: parseFloat(document.getElementById('put-price').value) };
+    const title = document.getElementById('put-title').value.trim();
+    if (title) body.title = title;
+    await apiFetch('PUT', `/annonces/${id}`, body, 'resp-put-annonce');
+  }
+
+  async function deleteAnnonce() {
+    const id = document.getElementById('del-annonce-id').value;
+    if (!confirm(`Supprimer l'annonce #${id} ?`)) return;
+    await apiFetch('DELETE', `/annonces/${id}`, null, 'resp-del-annonce');
+  }
+
+  // ── BOOKINGS ─────────────────────────────────────────────────
+  async function loadBookings() {
+    const { status, data } = await apiFetch('GET', '/bookings', null, 'bookings-container');
+    if (status === 200 && Array.isArray(data)) {
+      if (data.length === 0) {
+        document.getElementById('bookings-container').innerHTML = '<div class="empty">Aucune réservation</div>';
+        return;
+      }
+      const rows = data.map(b => `
+        <tr>
+          <td>#${b.id}</td>
+          <td>#${b.property_id}</td>
+          <td>${new Date(b.start_date).toLocaleDateString('fr-FR')}</td>
+          <td>${new Date(b.end_date).toLocaleDateString('fr-FR')}</td>
+          <td>${parseFloat(b.total_price).toFixed(2)} €</td>
+          <td><span class="pill pill-${b.booking_status}">${b.booking_status}</span></td>
+          <td><button class="btn-danger" onclick="document.getElementById('del-booking-id').value=${b.id}" style="width:auto;padding:4px 10px;font-size:11px">Annuler</button></td>
+        </tr>`).join('');
+      document.getElementById('bookings-container').innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Propriété</th><th>Début</th><th>Fin</th><th>Total</th><th>Statut</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+  }
+
+  async function createBooking() {
+    const body = {
+      property_id: parseInt(document.getElementById('book-property').value),
+      start_date: document.getElementById('book-start').value,
+      end_date: document.getElementById('book-end').value,
+    };
+    if (!body.start_date || !body.end_date) return showAlert('Dates requises', 'error', 'resp-create-booking');
+    const { status } = await apiFetch('POST', '/bookings', body, 'resp-create-booking');
+    if (status === 201) loadBookings();
+  }
+
+  async function deleteBooking() {
+    const id = document.getElementById('del-booking-id').value;
+    if (!confirm(`Annuler la réservation #${id} ?`)) return;
+    const { status } = await apiFetch('DELETE', `/bookings/${id}`, null, 'resp-del-booking');
+    if (status === 200) loadBookings();
+  }
+
+  // ── REVIEWS ──────────────────────────────────────────────────
+  function setRating(n) {
+    currentRating = n;
+    document.getElementById('rev-rating').value = n;
+    for (let i = 1; i <= 5; i++) {
+      const btn = document.getElementById(`star-${i}`);
+      btn.style.background = i <= n ? '#92400e' : '#1e293b';
+      btn.style.borderColor = i <= n ? '#f59e0b' : '#334155';
+    }
+  }
+
+  async function loadReviews() {
+    const id = document.getElementById('review-property-id').value;
+    const { status, data } = await apiFetch('GET', `/reviews/property/${id}`, null, 'reviews-container');
+    if (status === 200 && Array.isArray(data)) {
+      if (data.length === 0) {
+        document.getElementById('reviews-container').innerHTML = '<div class="empty">Aucun avis pour ce logement</div>';
+        return;
+      }
+      const html = data.map(r => `
+        <div style="padding:14px;border-top:1px solid #1e293b">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="stars">${'⭐'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</div>
+            <span style="font-size:11px;color:#475569">${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : ''}</span>
+          </div>
+          <div style="font-size:13px;color:#cbd5e1">${r.comment || '<em style="color:#475569">Pas de commentaire</em>'}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px">Par utilisateur #${r.reviewer_id}</div>
+        </div>`).join('');
+      document.getElementById('reviews-container').innerHTML = html;
+    }
+  }
+
+  async function createReview() {
+    const body = {
+      property_id: parseInt(document.getElementById('rev-property').value),
+      booking_id: parseInt(document.getElementById('rev-booking').value),
+      rating: parseInt(document.getElementById('rev-rating').value),
+      comment: document.getElementById('rev-comment').value.trim(),
+    };
+    await apiFetch('POST', '/reviews', body, 'resp-create-review');
+  }
+
+  // ── USERS ────────────────────────────────────────────────────
+  async function loadUsers() {
+    const { status, data } = await apiFetch('GET', '/users', null, 'users-container');
+    if (status === 200 && Array.isArray(data)) {
+      const rows = data.map(u => `
+        <tr>
+          <td>#${u.id}</td>
+          <td>${u.first_name} ${u.last_name}</td>
+          <td>${u.email}</td>
+          <td><span class="pill pill-${u.role}">${u.role}</span></td>
+          <td>${u.phone_number || '—'}</td>
+          <td style="color:#475569;font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+        </tr>`).join('');
+      document.getElementById('users-container').innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Téléphone</th><th>Créé le</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+  }
+</script>
+</body>
+</html>
