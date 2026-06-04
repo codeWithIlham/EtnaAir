@@ -230,9 +230,10 @@ export default function Search() {
     try {
       const query = buildQuery(overrides)
       const res = await propertyAPI.getAll(query)
-      setProperties(res.data)
+      const data = Array.isArray(res.data) ? res.data : []
+      setProperties(data)
       setPagination({
-        total:      parseInt(res.headers['x-total-count']  || res.data.length),
+        total:      parseInt(res.headers['x-total-count']  || data.length),
         totalPages: parseInt(res.headers['x-total-pages']  || 1),
         page:       parseInt(res.headers['x-current-page'] || 1),
         hasNext:    res.headers['x-has-next'] === 'true',
@@ -257,7 +258,7 @@ export default function Search() {
       const merged = []
       const seen = new Set()
       responses.forEach(r => {
-        r.data.forEach(p => { if (!seen.has(p.id)) { seen.add(p.id); merged.push(p) } })
+        (Array.isArray(r.data) ? r.data : []).forEach(p => { if (!seen.has(p.id)) { seen.add(p.id); merged.push(p) } })
       })
       setProperties(merged)
       setPagination({ total: merged.length, totalPages: 1, page: 1, hasNext: false, hasPrev: false })

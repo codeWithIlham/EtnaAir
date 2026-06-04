@@ -11,6 +11,13 @@ API.interceptors.request.use(config => {
   return config
 })
 
+API.interceptors.response.use(response => {
+  return response
+}, error => {
+  if (error.response) return Promise.resolve({ ...error.response, data: error.response.data })
+  return Promise.reject(error)
+})
+
 export const authAPI = {
   login:    (data) => API.post('/auth/login', data),
   register: (data) => API.post('/auth/register', data),
