@@ -11,6 +11,7 @@ const minioClient = new Minio.Client({
 const BUCKET = process.env.MINIO_BUCKET || "etnair-images";
 
 const initBucket = async () => {
+  try {
   const exists = await minioClient.bucketExists(BUCKET);
   if (!exists) {
     await minioClient.makeBucket(BUCKET);
@@ -28,11 +29,14 @@ const initBucket = async () => {
     }],
   });
 
-  try {
-    await minioClient.setBucketPolicy(BUCKET, policy);
-    console.log(`Bucket "${BUCKET}" configuré en lecture publique`);
+    try {
+      await minioClient.setBucketPolicy(BUCKET, policy);
+      console.log(`Bucket "${BUCKET}" configuré en lecture publique`);
+    } catch (err) {
+      console.warn("Impossible de définir la politique du bucket :", err.message);
+    }
   } catch (err) {
-    console.warn("Impossible de définir la politique du bucket :", err.message);
+    console.warn("⚠️  MinIO non disponible, les uploads d'images seront désactivés :", err.message);
   }
 };
 
