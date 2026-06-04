@@ -203,12 +203,13 @@ function GuestHome() {
   useEffect(() => {
     propertyAPI.getAll({ limit: 24 })
       .then(r => {
-        setAllProps(r.data)
+        const data = Array.isArray(r.data) ? r.data : []
+        setAllProps(data)
         const total = r.headers?.['x-total-count']
         if (total) setTotalProps(parseInt(total))
         // Indexer un exemple de logement par ville
         const examples = {}
-        r.data.forEach(p => {
+        data.forEach(p => {
           if (p.city && !examples[p.city]) examples[p.city] = p
         })
         setCityExamples(examples)
@@ -575,9 +576,9 @@ function TravelerHome() {
       bookingAPI.getAll().catch(() => ({ data: [] })),
       wishlistAPI.getAll().catch(() => ({ data: [] })),
     ]).then(([propRes, bookRes, wishRes]) => {
-      setFeatured(propRes.data)
-      setBookings(bookRes.data)
-      setWishlist(wishRes.data)
+      setFeatured(Array.isArray(propRes.data) ? propRes.data : [])
+      setBookings(Array.isArray(bookRes.data) ? bookRes.data : [])
+      setWishlist(Array.isArray(wishRes.data) ? wishRes.data : [])
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
