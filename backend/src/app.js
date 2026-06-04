@@ -39,6 +39,11 @@ const serviceRoutes  = require("./routes/service.routes");
 
 const app = express();
 
+app.set('etag', false);
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(cors());
 app.use(express.json());
 // Logging HTTP (morgan)
