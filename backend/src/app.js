@@ -44,7 +44,13 @@ app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://determined-charm-production-b88f.up.railway.app',
+    'http://localhost:5173',
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 // Logging HTTP (morgan)
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
